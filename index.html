@@ -411,12 +411,19 @@
         let finalTranscript = '';
         
         // --- Gemini API Configuration ---
-        // API key is removed from the URL entirely. The platform handles authorization internally.
+        
+        // 🚨 IMPORTANT: For local execution, your Gemini API key has been pasted below.
+        // When running in the Canvas/Preview environment, the key is handled automatically.
+        const userApiKey = "AIzaSyANG7LfjHln4LW2_RxVvN0ZC6hy5FdOySY"; 
+
         const modelName = "gemini-2.5-flash-preview-09-2025";
         const ttsModelName = "gemini-2.5-flash-preview-tts";
         
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
-        const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModelName}:generateContent`;
+        // Construct URLs with or without the key depending on execution environment
+        const keyQueryParam = userApiKey ? `?key=${userApiKey}` : '';
+        
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent${keyQueryParam}`;
+        const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ttsModelName}:generateContent${keyQueryParam}`;
 
         const systemPrompt = "You are 'NeON AI', an ultra-friendly, concise, and highly capable multimodal assistant. You can answer general questions using Google Search and also analyze and respond to images provided by the user. If the user speaks or types in Urdu, respond in clear, conversational Urdu. Otherwise, respond in English. Always keep your responses concise, conversational, and helpful.";
         
@@ -425,7 +432,7 @@
 
         /**
          * Generic fetch function with exponential backoff for API calls.
-         * @param {string} url - The API endpoint URL (without key parameter).
+         * @param {string} url - The API endpoint URL (which now includes the key if provided).
          * @param {object} payload - The JSON payload for the POST request.
          * @param {number} maxRetries - Maximum number of retry attempts.
          * @returns {Promise<object>} The JSON response from the API.
@@ -435,6 +442,9 @@
             let lastError = null;
             let delay = 1000;
 
+            // Optional check for local run without key - now handled by 'userApiKey' check above
+            // This is primarily for the Canvas environment to prevent accidental external calls without auth
+            
             for (let i = 0; i < maxRetries; i++) {
                 try {
                     const response = await fetch(url, {
@@ -661,7 +671,11 @@
                 recognition.onerror = (event) => {
                     console.error("Speech Recognition Error:", event.error);
                     closeVoiceInputModal(); // Close native modal on error
-                    showFallbackVoiceInput("Error: Microphone access denied or failed. Please type your command.");
+                    // Since file:// protocol often blocks microphone, provide friendly message
+                    const errorMsg = location.protocol === 'file:' 
+                        ? "Error: Microphone access denied or failed. Note that microphone access is often blocked when running HTML files directly from your desktop. Please type your command."
+                        : "Error: Microphone access denied or failed. Please type your command.";
+                    showFallbackVoiceInput(errorMsg);
                 };
             }
         }
@@ -918,6 +932,8 @@
             const prompt = userInput.value.trim();
             const imageFile = imageInput.files[0];
             
+            // The API key check is now handled by the populated userApiKey variable.
+
             if (prompt === '' && !imageFile) {
                 displayError("Please enter a message or attach an image.");
                 return;
@@ -981,7 +997,7 @@
                     aiText = candidate.content.parts[0].text;
 
                     const groundingMetadata = candidate.groundingMetadata;
-                    if (groundingMetadata && groundingAttributions) {
+                    if (groundingMetadata && groundingMetadata.groundingAttributions) { // Fixed typo in condition
                         sources = groundingMetadata.groundingAttributions
                             .map(attribution => ({
                                 uri: attribution.web?.uri,
@@ -1026,6 +1042,8 @@
             clearError();
             clearImage(); 
             setProcessing(true);
+
+            // The API key check is now handled by the populated userApiKey variable.
 
             // Filter history to only include text for summarization
             const textOnlyHistory = chatHistory.map(turn => {
